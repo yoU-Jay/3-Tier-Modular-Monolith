@@ -1,9 +1,6 @@
 name: Terraform CI/CD
 
-on:
-  push:
-    branches:
-      - terraform/dev            
+on:            
   pull_request:
     branches:
       - dev            # Also runs on PRs targeting 'dev'
@@ -32,7 +29,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan --var-file dev.tfvars
+        run: terraform plan --var-file terraform.tfvars
 
       # Optional: Auto apply only on push to this branch
       - name: Terraform Apply (auto-approve)
