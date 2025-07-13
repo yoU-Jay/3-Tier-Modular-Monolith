@@ -35,7 +35,11 @@ jobs:
         run: terraform plan --var-file terraform.tfvars
 
       # Optional: Auto apply only on push to this branch
-      - name: Terraform Apply (auto-approve)
+      # - name: Terraform Apply (auto-approve)
+      #   working-directory: ./terraform
+      #   #if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
+      #   run: terraform apply -auto-approve 
+
+      - name: Terraform Destroy (auto-approve)
         working-directory: ./terraform
-        #if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
-        run: terraform apply -auto-approve
+        run: terraform destroy -auto-approve 
