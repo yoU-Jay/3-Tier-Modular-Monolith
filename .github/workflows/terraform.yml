@@ -1,9 +1,6 @@
 name: Terraform CI/CD
 
-on:
-  push:
-    branches:
-      - terraform/dev            
+on:            
   pull_request:
     branches:
       - dev            # Also runs on PRs targeting 'dev'
@@ -26,15 +23,23 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: ./terraform
         run: terraform init
 
       - name: Terraform Validate
+        working-directory: ./terraform
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan --var-file dev.tfvars
+        working-directory: ./terraform
+        run: terraform plan --var-file terraform.tfvars
 
       # Optional: Auto apply only on push to this branch
-      - name: Terraform Apply (auto-approve)
-        if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
-        run: terraform apply -auto-approve
+      # - name: Terraform Apply (auto-approve)
+      #   working-directory: ./terraform
+      #   #if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
+      #   run: terraform apply -auto-approve 
+
+      - name: Terraform Destroy (auto-approve)
+        working-directory: ./terraform
+        run: terraform destroy -auto-approve 
