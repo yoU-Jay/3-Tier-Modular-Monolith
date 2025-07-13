@@ -37,5 +37,5 @@ jobs:
       # Optional: Auto apply only on push to this branch
       - name: Terraform Apply (auto-approve)
         working-directory: ./terraform
-        if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
+        #if: github.ref == 'refs/heads/dev'   # Make sure this matches the branch above
         run: terraform apply -auto-approve
