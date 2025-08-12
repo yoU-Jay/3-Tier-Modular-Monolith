@@ -3,7 +3,7 @@ name: Deploy Action Test
 on:
   push:
     branches:
-      - test_actions           
+      - dev         
   pull_request:
     branches:
       - dev  
@@ -11,7 +11,7 @@ on:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
-  ECR_REPO: "746669190910.dkr.ecr.us-east-1.amazonaws.com/my-node-ecr"
+  ECR_REPO: "196031534418.dkr.ecr.us-east-1.amazonaws.com/my-node-ecr"
 
 
 jobs:
@@ -51,7 +51,7 @@ jobs:
         run: terraform -chdir=terraform apply -auto-approve
 
   docker:
-    needs: [detect-changes, infra]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.docker_changed == 'true'
     runs-on: ubuntu-latest
     steps:
