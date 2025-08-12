@@ -1,10 +1,12 @@
+name: Deploy Action Test
+
 on:
   push:
     branches:
-      - dev
+      - terraform/dev            
   pull_request:
     branches:
-      - dev 
+      - dev  
     
 
 env:
