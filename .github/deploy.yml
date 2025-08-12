@@ -3,7 +3,7 @@ name: Deploy Action Test
 on:
   push:
     branches:
-      - terraform/dev            
+      - test_actions           
   pull_request:
     branches:
       - dev  
