@@ -1,0 +1,68 @@
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+  ECR_REPO: "746669190910.dkr.ecr.us-east-1.amazonaws.com/my-node-ecr"
+
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_changed: ${{ steps.filter.outputs.infra }}
+      docker_changed: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'terraform/**'
+              - 'ecs-task-definitions/**'
+            docker:
+              - 'Dockerfile'
+              - 'app/**'
+  
+  infra:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Terraform Init
+        run: terraform -chdir=terraform init
+      - name: Terraform Apply
+        run: terraform -chdir=terraform apply -auto-approve
+
+  docker:
+    needs: [detect-changes, infra]
+    if: needs.detect-changes.outputs.docker_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image to ECR
+        run: |
+          docker build -t ${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }} .
+          docker push ${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
