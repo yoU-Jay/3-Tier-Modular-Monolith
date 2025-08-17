@@ -26,28 +26,21 @@ This project implements a 3-tier modular monolith backend application using **Fa
 ├── README.md
 ├── backend
 │   ├── __init__.py
+│   ├── main.py
 │   ├── api
 │   │   └── routes
 │   │       ├── __init__.py
 │   │       ├── health_routes.py
-│   │       ├── test_db.py
 │   │       └── user_routes.py
-│   ├── database
-│   │   ├── __init__.py
-│   │   └── db_config.py
 │   ├── db
 │   │   ├── __init__.py
 │   │   └── database.py
-│   ├── main.py
 │   ├── models
 │   │   ├── __init__.py
 │   │   └── user.py
 │   └── services
 │       ├── __init__.py
 │       └── user_service.py
-├── backend/tests
-│   └── __init__.py
-├── folder_snapshot.txt
 ├── requirements.txt
 └── run.py
 ```
