@@ -47,4 +47,14 @@ def get_db_pool() -> asyncpg.Pool:
         raise RuntimeError("Database pool is not initialized")
     return pool
 
+async def db_create_user(conn, name: str, email: str):
+    query = "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email"
+    return await conn.fetchrow(query, name, email)
 
+async def db_get_user_by_id(conn, user_id: int):
+    query = "SELECT id, name, email FROM users WHERE id=$1"
+    return await conn.fetchrow(query, user_id)
+
+async def db_list_users(conn):
+    query = "SELECT id, name, email FROM users"
+    return await conn.fetch(query)

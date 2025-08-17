@@ -5,4 +5,4 @@ sys.path.append(str(Path(__file__).parent))
 import uvicorn
 
 if __name__ == "__main__":
-    uvicorn.run("backend.main:app", host="localhost", port=8082, reload=True)
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8083, reload=True)
