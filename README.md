@@ -128,13 +128,47 @@ http://127.0.0.1:8082/docs
 * Testing endpoints can be done directly from the FastAPI interactive docs.
 * All database operations are asynchronous using `asyncpg`.
 
-## Next Steps / Timeline
-### Dockerize the Application
+## Containerization with Docker & Docker Compose
 
-- Containerize backend API using Docker
-- Include PostgreSQL in Docker Compose (optional)
-- Ensure environment variables are properly injected
-- Verify endpoints work inside containers
+This project is fully containerized using Docker and orchestrated with Docker Compose.
+
+**Features**
+
+✅ Dockerfile created for the FastAPI application
+
+✅ Multi-service setup with FastAPI app and PostgreSQL database
+
+✅ Environment variables managed via .env file (no hardcoded secrets)
+
+✅ Application exposed on http://localhost:8008
+
+✅ Database accessible internally to the app without extra config
+
+**Usage**
+
+Build and start the containers:
+
+```bash
+docker compose up -d --build
+```
+
+Stop and remove containers:
+
+```bash
+docker compose down
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+**Notes**
+
+The FastAPI app listens on 0.0.0.0:8008 inside the container and is mapped to localhost:8008 on your machine.
+
+Database data persists using Docker volumes (so data is not lost when containers restart).
 
 ### Epic 2: Deploy to AWS
 
