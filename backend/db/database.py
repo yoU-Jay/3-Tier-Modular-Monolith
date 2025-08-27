@@ -13,6 +13,7 @@ DB_NAME = os.getenv("POSTGRES_DB", "testdb")
 
 pool: Optional[asyncpg.Pool] = None
 
+
 async def connect_to_db():
     global pool
     pool = await asyncpg.create_pool(
@@ -22,9 +23,10 @@ async def connect_to_db():
         host=DB_HOST,
         port=DB_PORT,
         min_size=1,
-        max_size=5
+        max_size=5,
     )
     print("✅ Database connection pool created")
+
 
 async def disconnect_from_db():
     global pool
@@ -32,28 +34,35 @@ async def disconnect_from_db():
         await pool.close()
         print("🛑 Database connection pool closed")
 
+
 async def create_tables():
     async with pool.acquire() as conn:
-        await conn.execute("""
+        await conn.execute(
+            """
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL
         )
-        """)
+        """
+        )
+
 
 def get_db_pool() -> asyncpg.Pool:
     if not pool:
         raise RuntimeError("Database pool is not initialized")
     return pool
 
+
 async def db_create_user(conn, name: str, email: str):
     query = "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email"
     return await conn.fetchrow(query, name, email)
 
+
 async def db_get_user_by_id(conn, user_id: int):
     query = "SELECT id, name, email FROM users WHERE id=$1"
     return await conn.fetchrow(query, user_id)
+
 
 async def db_list_users(conn):
     query = "SELECT id, name, email FROM users"

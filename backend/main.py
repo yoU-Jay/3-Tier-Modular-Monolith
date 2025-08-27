@@ -4,6 +4,7 @@ from backend.api.routes.health_routes import router as health_router
 from backend.api.routes.user_routes import router as user_router
 from backend.db.database import connect_to_db, disconnect_from_db, create_tables
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -13,12 +14,13 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await disconnect_from_db()
 
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="3-Tier Modular Monolith API",
         version="1.0.0",
         description="Backend API for Modular Monolith",
-        lifespan=lifespan 
+        lifespan=lifespan,
     )
 
     # Include API routes
@@ -26,5 +28,6 @@ def create_app() -> FastAPI:
     app.include_router(user_router, prefix="/users")
 
     return app
+
 
 app = create_app()

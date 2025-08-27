@@ -1,7 +1,12 @@
 # services/user_service.py
 from backend.models.user import UserCreate, UserRead
-from backend.db.database import get_db_pool, db_create_user, db_get_user_by_id, db_list_users
-from typing import List
+from backend.db.database import (
+    get_db_pool,
+    db_create_user,
+    db_get_user_by_id,
+    db_list_users,
+)
+
 
 class UserService:
     async def create_user(self, user: UserCreate) -> UserRead:
@@ -22,4 +27,6 @@ class UserService:
         pool = get_db_pool()
         async with pool.acquire() as conn:
             rows = await db_list_users(conn)
-            return [UserRead(id=r["id"], name=r["name"], email=r["email"]) for r in rows]
+            return [
+                UserRead(id=r["id"], name=r["name"], email=r["email"]) for r in rows
+            ]
