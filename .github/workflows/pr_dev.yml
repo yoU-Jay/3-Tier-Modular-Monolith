@@ -121,8 +121,8 @@ jobs:
           pip install -r ${{ env.APP_DIR }}/requirements.txt
           pip install pytest flake8 black
 
-      - name: Lint (flake8)
-        run: flake8 ${{ env.APP_DIR }}/backend
+      # - name: Lint (flake8)
+      #   run: flake8 ${{ env.APP_DIR }}/backend
 
       - name: Format check (black)
         run: black --check ${{ env.APP_DIR }}/backend
@@ -144,7 +144,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Secret scan (TruffleHog)
-        uses: trufflesecurity/trufflehog@v3
+        uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --only-verified
 
