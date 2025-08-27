@@ -1,0 +1,158 @@
+# .github/workflows/pr-ci.yml
+name: PR CI (feature → dev)
+
+on:
+  pull_request:
+    branches: [ "dev" ]
+
+# Prevent overlapping runs on the same PR
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+env:
+  APP_DIR: .
+  INFRA_DIR: terraform
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # 1) Detect what changed (authoritative, reliable)
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      infra: ${{ steps.filter.outputs.infra }}
+      internal_pr: ${{ steps.internal_pr.outputs.internal }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect path changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            app:
+              - '${{ env.APP_DIR }}/**'
+            infra:
+              - '${{ env.INFRA_DIR }}/**'
+
+      - name: Is PR from same repository (internal PR)?
+        id: internal_pr
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+            echo "internal=true" >> $GITHUB_OUTPUT
+          else
+            echo "internal=false" >> $GITHUB_OUTPUT
+          fi
+
+  # 2) Terraform checks (only if infra/** changed)
+  infra-checks:
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.infra == 'true'
+    defaults:
+      run:
+        working-directory: ${{ env.INFRA_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+          cli_config_credentials_token: "" # No backend auth on PRs
+
+      - name: Terraform fmt (lint)
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --format=compact
+
+      # Optional plan: only for internal PRs (no secrets on forks)
+      - name: Terraform plan (internal PRs only)
+        if: needs.changes.outputs.internal_pr == 'true'
+        env:
+          TF_VAR_dummy: "pr"
+        run: |
+          # If your plan requires cloud creds/backends, keep -backend=false and
+          # rely on mock vars. Wire real creds only if you’re comfortable on internal PRs.
+          terraform plan -lock=false -input=false -no-color || true
+
+  # 3) App checks (only if app/** changed)
+  app-checks:
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.app == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: |
+            ${{ env.APP_DIR }}/requirements.txt
+            ${{ env.APP_DIR }}/requirements-*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ env.APP_DIR }}/requirements.txt
+          pip install pytest flake8 black
+
+      - name: Lint (flake8)
+        run: flake8 ${{ env.APP_DIR }}
+
+      - name: Format check (black)
+        run: black --check ${{ env.APP_DIR }}
+
+      - name: Run unit tests (pytest)
+        run: pytest -q ${{ env.APP_DIR }}
+
+      - name: Validate Docker Compose config
+        run: |
+          docker compose -f ${{ env.APP_DIR }}/docker-compose.yml config
+
+  # 4) Generic checks (run AFTER infra/app; executes even if one was skipped)
+  generic-checks:
+    runs-on: ubuntu-latest
+    needs: [infra-checks, app-checks]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Secret scan (TruffleHog)
+        uses: trufflesecurity/trufflehog@v3
+        with:
+          extra_args: --only-verified
+
+      - name: Dependency review (GitHub)
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      # Example: Conventional commits (optional)
+      # - name: Validate commit messages
+      #   uses: webiny/action-conventional-commits@v1.3.0
