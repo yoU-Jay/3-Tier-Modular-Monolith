@@ -1,7 +1,7 @@
 # 3-Tier-Modular-Monolith
   
 ## Overview
-
+  
 This project implements a 3-tier modular monolith backend application using **FastAPI**. The system is designed to be modular, maintainable, and easily extensible. The project supports **user management** and a **health check endpoint**, backed by a **PostgreSQL database** running in Docker.
 
 **Completed so far (Tasks 1–17):**
