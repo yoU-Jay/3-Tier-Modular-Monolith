@@ -16,9 +16,15 @@ on:
   #             options:
   #                 - apply
   #                 - destroy
-  push:
+  # push:
+  #   branches:
+  #     - feat_tf_ci
+  pull_request:
     branches:
-      - feat_tf_ci
+      - dev
+    paths:
+      - 'infra/**'
+      - 'backend/**'
 
 env:
   AWS_REGION: us-east-1
