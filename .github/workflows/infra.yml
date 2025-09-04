@@ -50,8 +50,13 @@ jobs:
           minimum-approvals: 1
           timeout-minutes: 30
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file=dev.tfvars
+      # - name: Terraform Apply
+      #   run: terraform apply -auto-approve -var-file=dev.tfvars
+      #   working-directory: infra/
+
+      - name: Terraform Destroy
+       # if: ${{ github.event.inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve -var-file=dev.tfvars
         working-directory: infra/
 
       - name: Capture Infra Outputs
