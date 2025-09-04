@@ -5,7 +5,7 @@ output "ecr_repo" {
 
 output "ec2_instance_id" {
   description = "The ID of the created EC2 instance"
-  value       = module.ec2.ec2_id
+  value       = module.ec2.ec2_instance_id
 }
 
 output "key_name" {
