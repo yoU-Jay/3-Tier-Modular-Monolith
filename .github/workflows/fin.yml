@@ -16,9 +16,9 @@ on:
               options:
                   - apply
                   - destroy
-  push:
-    branches:
-      - feat_tf_ci
+  # push:
+  #   branches:
+  #     - feat_tf_ci
 
 env:
   AWS_REGION: us-east-1
