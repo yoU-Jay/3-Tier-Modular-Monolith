@@ -43,7 +43,7 @@ jobs:
             infra:
               - 'infra/**'
             app:
-              - 'app/**'
+              - 'backend/**'
 
   infra-jobs:
     name: Deploy Infra
