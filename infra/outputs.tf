@@ -3,7 +3,7 @@ output "ecr_repo" {
   value       = module.ecr.repository_url
 }
 
-output "ec2_instance_id" {
+output "ec2_instance" {
   description = "The ID of the created EC2 instance"
   value       = module.ec2.ec2_instance_id
 }
