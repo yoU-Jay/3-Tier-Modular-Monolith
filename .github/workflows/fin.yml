@@ -2,15 +2,15 @@ name: EC2 Docker
 
 on:
   workflow_dispatch:
-    inputs:
-      action:
-        description: "Terraform Action"
-        required: true
-        default: "apply"
-        type: choice
-        options:
-          - apply
-          - destroy
+    # inputs:
+    #   action:
+    #     description: "Terraform Action"
+    #     required: true
+    #     default: "apply"
+    #     type: choice
+    #     options:
+    #       - apply
+    #       - destroy
   # push:
   #   branches:
   #     - dev
