@@ -71,10 +71,15 @@ jobs:
 
       - name: Wait for manual approval
         if: ${{ github.event.inputs.action == 'apply' }}
-        uses: hmarr/wait-for-approval@v1
-        timeout-minutes: 30
+        uses: trstringer/manual-approval@v1
+        timeout-minutes: 30             # Step will fail if no decision in 60 minutes
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: yoU-Jay  # comma-separated if multiple
+          minimum-approvals: 1
+          issue-title: "Approve Terraform apply?"
+          issue-body: "Please approve or deny the Terraform plan apply."
+          fail-on-denial: true
 
       - name: Terraform Apply
         if: ${{ github.event.inputs.action == 'apply' }}
