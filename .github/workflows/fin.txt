@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - detect-changes
-      - infra-jobs
+      #- infra-jobs
     if: ${{ needs.detect-changes.outputs.app_changed == 'true' }}
     steps:
       - uses: actions/checkout@v4
