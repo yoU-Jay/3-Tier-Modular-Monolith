@@ -1,4 +1,4 @@
-name: EC2_Docker
+name: EC2 Docker
 
 on:
   workflow_dispatch:
