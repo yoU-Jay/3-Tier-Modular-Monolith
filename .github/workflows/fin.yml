@@ -1,5 +1,10 @@
 name: EC2 Docker
 
+permissions:
+  contents: write       # needed for creating approval issues
+  issues: write         # needed for approval comments
+  id-token: write       # only needed if using OIDC auth (safe to leave)
+
 on:
   # workflow_dispatch:
     # inputs:
