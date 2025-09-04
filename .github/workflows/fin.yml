@@ -146,7 +146,7 @@ jobs:
     needs:
       - detect-changes
       - infra-jobs
-    if: ${{ needs.detect-changes.outputs.app_changed == 'true' }} || ${{ needs.infra-jobs.outputs.infra_affects_app == 'true' }}
+    if: ${{ needs.detect-changes.outputs.app_changed == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
