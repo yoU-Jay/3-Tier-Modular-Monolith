@@ -1,0 +1,190 @@
+name: EC2_Docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform Action"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
+  # push:
+  #   branches:
+  #     - dev
+
+env:
+  AWS_REGION: us-east-1
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: testdb
+
+jobs:
+  detect-changes:
+    name: Detect Code Changes
+    runs-on: ubuntu-latest
+    outputs:
+      infra_changed: ${{ steps.filter.outputs.infra }}
+      app_changed: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+            app:
+              - 'app/**'
+
+  infra-jobs:
+    name: Deploy Infra
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.infra_changed == 'true' }}
+    outputs:
+      infra_affects_app: ${{ steps.conditional.outputs.affects_app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Configure AWS credentials via OIDC
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::196031534418:role/GithubActions_youjay
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Setup Terraform
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/
+
+      - name: Terraform Plan
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform plan -out=tfplan
+        working-directory: infra/
+
+      - name: Wait for manual approval
+        if: ${{ github.event.inputs.action == 'apply' }}
+        uses: hmarr/wait-for-approval@v1
+        timeout-minutes: 30
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform apply -auto-approve
+        working-directory: infra/
+
+      - name: Terraform Destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve
+        working-directory: infra/
+
+      # Capture Terraform outputs
+      - name: Capture Infra Outputs
+        id: tfoutputs
+        run: |
+          echo "ecr_repo=$(terraform output -raw ecr_repo)" >> $GITHUB_OUTPUT
+          echo "ec2_instance_id=$(terraform output -raw ec2_instance_id)" >> $GITHUB_OUTPUT
+        working-directory: infra/
+
+      # Update SSM parameters only if changed
+      - name: Update Parameter Store
+        id: conditional
+        run: |
+          CHANGED=false
+          for key in ecr_repo ec2_instance_id; do
+            NEW_VALUE=$(echo "${{ steps.tfoutputs.outputs[$key] }}")
+            OLD_VALUE=$(aws ssm get-parameter --name "/ci/$key" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+            if [ "$NEW_VALUE" != "$OLD_VALUE" ]; then
+              echo "Updating /ci/$key → $NEW_VALUE"
+              aws ssm put-parameter --name "/ci/$key" --value "$NEW_VALUE" --type String --overwrite
+              CHANGED=true
+            else
+              echo "/ci/$key unchanged"
+            fi
+          done
+          echo "affects_app=$CHANGED" >> $GITHUB_OUTPUT
+
+  app-jobs:
+    name: Build or Use Existing Image & Deploy
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - infra-jobs
+    if: |
+      needs.detect-changes.outputs.app_changed == 'true' ||
+      needs.infra-jobs.outputs.infra_affects_app == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::196031534418:role/GithubActions_youjay
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch Infra Details
+        run: |
+          export ECR_REPO=$(aws ssm get-parameter --name "/ci/ecr_repo" --query "Parameter.Value" --output text)
+          export EC2_INSTANCE_ID=$(aws ssm get-parameter --name "/ci/ec2_instance_id" --query "Parameter.Value" --output text)
+          echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+          echo "EC2_INSTANCE_ID=$EC2_INSTANCE_ID" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ env.ECR_REPO }}
+
+      # Case 1: App code changed → Build & Push new image
+      - name: Build & Push New Image
+        if: ${{ needs.detect-changes.outputs.app_changed == 'true' }}
+        run: |
+          IMAGE_TAG=build-${{ github.sha }}
+          docker build -t ${{ env.ECR_REPO }}:$IMAGE_TAG ./app
+          docker push ${{ env.ECR_REPO }}:$IMAGE_TAG
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # Case 2: Only infra changed → Check if image exists in ECR
+      - name: Check for Existing Image in ECR
+        if: ${{ needs.detect-changes.outputs.app_changed != 'true' }}
+        run: |
+          IMAGE_TAG=$(aws ecr list-images --repository-name $(echo $ECR_REPO | cut -d'/' -f2) \
+            --query 'imageIds[0].imageTag' --output text)
+          if [ "$IMAGE_TAG" == "None" ] || [ -z "$IMAGE_TAG" ]; then
+            echo "❌ No existing image found in $ECR_REPO"
+            exit 1
+          else
+            echo "✅ Found existing image: $IMAGE_TAG"
+            echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          fi
+
+      # Common Deploy Step → EC2 via SSM
+      - name: Deploy to EC2
+        run: |
+          aws ssm send-command \
+            --targets "Key=instanceIds,Values=$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy app using docker-compose with ECR image" \
+            --parameters 'commands=[
+              "sudo yum update -y || sudo apt-get update -y",
+              "if ! command -v docker &> /dev/null; then curl -fsSL https://get.docker.com | sh; fi",
+              "sudo systemctl enable docker",
+              "sudo systemctl start docker",
+              "if ! command -v docker-compose &> /dev/null; then curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose; fi",
+              "aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_REPO | cut -d'/' -f1)",
+              "cd /home/ec2-user/app || mkdir -p /home/ec2-user/app && cd /home/ec2-user/app",
+              "echo \"ECR_REPO=$ECR_REPO\" > .env.deploy",
+              "echo \"IMAGE_TAG=$IMAGE_TAG\" >> .env.deploy",
+              "echo \"POSTGRES_USER=$POSTGRES_USER\" >> .env.deploy",
+              "echo \"POSTGRES_PASSWORD=$POSTGRES_PASSWORD\" >> .env.deploy",
+              "echo \"POSTGRES_DB=$POSTGRES_DB\" >> .env.deploy",
+              "docker-compose --env-file .env.deploy pull backend",
+              "docker-compose --env-file .env.deploy up -d --force-recreate backend db"
+            ]'
