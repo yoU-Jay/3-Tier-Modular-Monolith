@@ -66,12 +66,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config=backend.tfvars
         working-directory: infra/
 
       - name: Terraform Plan
         if: ${{ github.event.inputs.action == 'apply' }}
-        run: terraform plan -out=tfplan
+        run: terraform plan -out=tfplan -var-file=dev.tfvars
         working-directory: infra/
 
       - name: Wait for manual approval
@@ -88,12 +88,12 @@ jobs:
 
       - name: Terraform Apply
         if: ${{ github.event.inputs.action == 'apply' }}
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -var-file=dev.tfvars
         working-directory: infra/
 
       - name: Terraform Destroy
         if: ${{ github.event.inputs.action == 'destroy' }}
-        run: terraform destroy -auto-approve
+        run: terraform destroy -auto-approve -var-file=dev.tfvars
         working-directory: infra/
 
       # Capture Terraform outputs
