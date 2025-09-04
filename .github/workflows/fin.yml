@@ -6,19 +6,19 @@ permissions:
   id-token: write       # only needed if using OIDC auth (safe to leave)
 
 on:
-  workflow_dispatch:
-      inputs:
-          action:
-              description: 'Action to perform'
-              required: true
-              default: 'apply'
-              type: choice
-              options:
-                  - apply
-                  - destroy
-  # push:
-  #   branches:
-  #     - feat_tf_ci
+  # workflow_dispatch:
+  #     inputs:
+  #         action:
+  #             description: 'Action to perform'
+  #             required: true
+  #             default: 'apply'
+  #             type: choice
+  #             options:
+  #                 - apply
+  #                 - destroy
+  push:
+    branches:
+      - feat_tf_ci
 
 env:
   AWS_REGION: us-east-1
@@ -35,6 +35,8 @@ jobs:
       app_changed: ${{ steps.filter.outputs.app }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
 
       - uses: dorny/paths-filter@v3
         id: filter
