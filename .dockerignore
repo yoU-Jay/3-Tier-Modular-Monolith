@@ -44,3 +44,7 @@ Dockerfile*
 
 # Misc
 .DS_Store
+
+# Infra
+infra/*
+.github/*

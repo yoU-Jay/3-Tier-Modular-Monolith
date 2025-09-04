@@ -40,18 +40,24 @@ jobs:
         run: terraform plan -out=tfplan -var-file=dev.tfvars
         working-directory: infra/
 
-      - name: Wait for manual approval
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: yoU-Jay
-          issue-title: "Approve Terraform apply?"
-          issue-body: "Approve or deny the Terraform plan apply."
-          minimum-approvals: 1
-          timeout-minutes: 30
+      # - name: Wait for manual approval
+      #   uses: trstringer/manual-approval@v1
+      #   timeout-minutes: 30
+      #   with:
+      #     secret: ${{ secrets.GITHUB_TOKEN }}
+      #     approvers: yoU-Jay
+      #     issue-title: "Approve Terraform apply?"
+      #     issue-body: "Approve or deny the Terraform plan apply."
+      #     minimum-approvals: 1
+          
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file=dev.tfvars
+      # - name: Terraform Apply
+      #   run: terraform apply -auto-approve -var-file=dev.tfvars
+      #   working-directory: infra/
+
+      - name: Terraform Destroy
+       # if: ${{ github.event.inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve -var-file=dev.tfvars
         working-directory: infra/
 
       - name: Capture Infra Outputs
