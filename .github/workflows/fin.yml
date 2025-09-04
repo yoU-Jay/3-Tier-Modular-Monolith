@@ -6,16 +6,16 @@ permissions:
   id-token: write       # only needed if using OIDC auth (safe to leave)
 
 on:
-  # workflow_dispatch:
-  #     inputs:
-  #         action:
-  #             description: 'Action to perform'
-  #             required: true
-  #             default: 'apply'
-  #             type: choice
-  #             options:
-  #                 - apply
-  #                 - destroy
+  workflow_dispatch:
+      inputs:
+          action:
+              description: 'Action to perform'
+              required: true
+              default: 'apply'
+              type: choice
+              options:
+                  - apply
+                  - destroy
   push:
     branches:
       - feat_tf_ci
