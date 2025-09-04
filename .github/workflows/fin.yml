@@ -6,19 +6,19 @@ permissions:
   id-token: write       # only needed if using OIDC auth (safe to leave)
 
 on:
-  workflow_dispatch:
-      inputs:
-          action:
-              description: 'Action to perform'
-              required: true
-              default: 'apply'
-              type: choice
-              options:
-                  - apply
-                  - destroy
-  # push:
-  #   branches:
-  #     - feat_tf_ci
+  # workflow_dispatch:
+  #     inputs:
+  #         action:
+  #             description: 'Action to perform'
+  #             required: true
+  #             default: 'apply'
+  #             type: choice
+  #             options:
+  #                 - apply
+  #                 - destroy
+  push:
+    branches:
+      - feat_tf_ci
 
 env:
   AWS_REGION: us-east-1
@@ -70,12 +70,12 @@ jobs:
         working-directory: infra/
 
       - name: Terraform Plan
-        if: ${{ github.event.inputs.action == 'apply' }}
+        #if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform plan -out=tfplan -var-file=dev.tfvars
         working-directory: infra/
 
       - name: Wait for manual approval
-        if: ${{ github.event.inputs.action == 'apply' }}
+        #if: ${{ github.event.inputs.action == 'apply' }}
         uses: trstringer/manual-approval@v1
         timeout-minutes: 30             # Step will fail if no decision in 60 minutes
         with:
@@ -87,7 +87,7 @@ jobs:
           fail-on-denial: true
 
       - name: Terraform Apply
-        if: ${{ github.event.inputs.action == 'apply' }}
+        #if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform apply -auto-approve -var-file=dev.tfvars
         working-directory: infra/
 
