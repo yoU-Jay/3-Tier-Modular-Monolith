@@ -74,7 +74,7 @@ jobs:
         uses: hmarr/wait-for-approval@v1
         timeout-minutes: 30
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Terraform Apply
         if: ${{ github.event.inputs.action == 'apply' }}
