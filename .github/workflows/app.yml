@@ -1,0 +1,106 @@
+name: App Pipeline
+
+on:
+  pull_request:
+    branches:
+      - feat_tf_ci
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+    # inputs:
+    #   triggered_by_infra:
+    #     description: "Triggered by Infra Pipeline"
+    #     required: false
+    #     default: "false"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: testdb
+
+jobs:
+  app:
+    name: Build or Use Existing Image & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::196031534418:role/GithubActions_youjay
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch Infra Details from SSM
+        run: |
+          export ECR_REPO=$(aws ssm get-parameter --name "/ci/ecr_repo" --query "Parameter.Value" --output text)
+          export EC2_INSTANCE_ID=$(aws ssm get-parameter --name "/ci/ec2_instance_id" --query "Parameter.Value" --output text)
+          echo "ECR_REPO=$ECR_REPO" >> $GITHUB_ENV
+          echo "EC2_INSTANCE_ID=$EC2_INSTANCE_ID" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ env.ECR_REPO }}
+
+      # - name: Detect App Code Changes
+      #   id: detect
+      #   run: |
+      #     CHANGED=false
+      #     if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.triggered_by_infra }}" == "true" ]]; then
+      #       CHANGED=false
+      #     else
+      #       git fetch origin ${{ github.base_ref || 'main' }}
+      #       CHANGED=$(git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD | grep '^backend/' || true)
+      #     fi
+      #     echo "app_changed=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Build & Push New Image
+        # if: steps.detect.outputs.app_changed
+        run: |
+          IMAGE_TAG=build-${{ github.sha }}
+          docker build -t ${{ env.ECR_REPO }}:$IMAGE_TAG ./backend
+          docker push ${{ env.ECR_REPO }}:$IMAGE_TAG
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # - name: Check for Existing Image (if not building)
+      #   if: ${{ !steps.detect.outputs.app_changed }}
+      #   run: |
+      #     IMAGE_TAG=$(aws ecr list-images --repository-name $(echo $ECR_REPO | cut -d'/' -f2) \
+      #       --query 'imageIds[0].imageTag' --output text)
+      #     if [ "$IMAGE_TAG" == "None" ] || [ -z "$IMAGE_TAG" ]; then
+      #       echo "❌ No existing image found"
+      #       exit 1
+      #     else
+      #       echo "✅ Using existing image: $IMAGE_TAG"
+      #       echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+      #     fi
+
+      - name: Deploy to EC2
+        run: |
+          aws ssm send-command \
+            --targets "Key=instanceIds,Values=$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy app via docker-compose" \
+            --parameters 'commands=[
+              "sudo yum update -y || sudo apt-get update -y",
+              "if ! command -v docker &> /dev/null; then curl -fsSL https://get.docker.com | sh; fi",
+              "sudo systemctl enable docker",
+              "sudo systemctl start docker",
+              "if ! command -v docker-compose &> /dev/null; then curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose; fi",
+              "aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_REPO | cut -d'/' -f1)",
+              "cd /home/ec2-user/app || mkdir -p /home/ec2-user/app && cd /home/ec2-user/app",
+              "echo \"ECR_REPO=$ECR_REPO\" > .env.deploy",
+              "echo \"IMAGE_TAG=$IMAGE_TAG\" >> .env.deploy",
+              "echo \"POSTGRES_USER=$POSTGRES_USER\" >> .env.deploy",
+              "echo \"POSTGRES_PASSWORD=$POSTGRES_PASSWORD\" >> .env.deploy",
+              "echo \"POSTGRES_DB=$POSTGRES_DB\" >> .env.deploy",
+              "docker-compose --env-file .env.deploy pull backend",
+              "docker-compose --env-file .env.deploy up -d --force-recreate backend db"
+            ]'

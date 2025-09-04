@@ -1,0 +1,91 @@
+name: Infra Pipeline
+
+on:
+  pull_request:
+    branches:
+      - feat_tf_ci
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy-infra:
+    name: Deploy Infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::196031534418:role/GithubActions_youjay
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.tfvars
+        working-directory: infra/
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -var-file=dev.tfvars
+        working-directory: infra/
+
+      - name: Wait for manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: yoU-Jay
+          issue-title: "Approve Terraform apply?"
+          issue-body: "Approve or deny the Terraform plan apply."
+          minimum-approvals: 1
+          timeout-minutes: 30
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file=dev.tfvars
+        working-directory: infra/
+
+      - name: Capture Infra Outputs
+        id: tfoutputs
+        run: |
+          echo "ecr_repo=$(terraform output -raw ecr_repo)" >> $GITHUB_OUTPUT
+          echo "ec2_instance_id=$(terraform output -raw ec2_instance_id)" >> $GITHUB_OUTPUT
+        working-directory: infra/
+
+      - name: Update Parameter Store
+        id: conditional
+        run: |
+          CHANGED=false
+          
+          # --- ecr_repo ---
+          NEW_VALUE="${{ steps.tfoutputs.outputs.ecr_repo }}"
+          OLD_VALUE=$(aws ssm get-parameter --name "/ci/ecr_repo" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          if [ "$NEW_VALUE" != "$OLD_VALUE" ]; then
+            echo "Updating /ci/ecr_repo → $NEW_VALUE"
+            aws ssm put-parameter --name "/ci/ecr_repo" --value "$NEW_VALUE" --type String --overwrite
+            CHANGED=true
+          else
+            echo "/ci/ecr_repo unchanged"
+          fi
+          
+          # --- ec2_instance_id ---
+          NEW_VALUE="${{ steps.tfoutputs.outputs.ec2_instance_id }}"
+          OLD_VALUE=$(aws ssm get-parameter --name "/ci/ec2_instance_id" --query "Parameter.Value" --output text 2>/dev/null || echo "")
+          if [ "$NEW_VALUE" != "$OLD_VALUE" ]; then
+            echo "Updating /ci/ec2_instance_id → $NEW_VALUE"
+            aws ssm put-parameter --name "/ci/ec2_instance_id" --value "$NEW_VALUE" --type String --overwrite
+            CHANGED=true
+          else
+            echo "/ci/ec2_instance_id unchanged"
+          fi
+          
+          echo "affects_app=$CHANGED" >> $GITHUB_OUTPUT
